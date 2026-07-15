@@ -44,8 +44,6 @@ int main (void) {
 
         int ip_header_len = ip-> ihl *4;
 
-        if (bytes < 14 +ip_header_len + (int)sizeof(struct tcphdr)) continue;
-
         if (ip->protocol == 6){
             if(bytes < 14 + ip_header_len + (int)sizeof(struct tcphdr)) continue;
             struct tcphdr *tcp = (struct tcphdr *)(buffer + 14 + ip_header_len);
