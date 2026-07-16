@@ -19,8 +19,26 @@ void handle_sigint(int sig) {
     running = 0;
 }
 
-int main (void) {
-
+int main (int argc, char *argv[]) {
+	int filter = 0;
+	
+	if (argc > 1) {
+		if (strcmp(argv[1], "--help") == 0){
+			printf("Usage: %s [tcp|udp|icmp]\n", argv[0]);
+			printf(" No argument: capture all protocols\n");
+			return 0;
+		}
+		else if (strcmp(argv[1], "tcp") == 0) filter =6;
+		else if (strcmp(argv[1], "udp") == 0) filter =17;
+		else if (strcmp(argv[1], "icmp") == 0) filter =1;
+		else {
+			printf("Unknown filter: %s\n", argv[1]);
+			printf("Usage: %s [tcp|udp|icmp]\n", argv[0]);
+			return 1;
+		}
+	}
+	
+		
     signal(SIGINT, handle_sigint);
     int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (sock < 0) {
@@ -44,6 +62,7 @@ int main (void) {
 
         total_count ++; 
 
+		
 		time_t now = time(NULL);
 		struct tm *t = localtime(&now);
 		char timestr[16];
@@ -59,6 +78,8 @@ int main (void) {
 
         int ip_header_len = ip-> ihl *4;
 
+		if (filter != 0 && ip->protocol != filter) continue;
+		
         if (ip->protocol == 6){
             if(bytes < 14 + ip_header_len + (int)sizeof(struct tcphdr)) continue;
             struct tcphdr *tcp = (struct tcphdr *)(buffer + 14 + ip_header_len);
