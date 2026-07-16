@@ -10,13 +10,18 @@ A packet sniffer written in C using raw sockets on Linux. The project captures l
 - Displays source and destination IP addresses
 - Displays source and destination ports
 - Graceful shutdown with Ctrl+C
+- Filtering for scepific protocol
+- Statistics shows you chosen protocol count 
+- Each packet is timestamped
 
 ## Example Output
 
 ```
-TCP 192.168.1.15:52874 -> 142.250.184.78:443
-UDP 192.168.1.15:5353 -> 224.0.0.251:5353
-ICMP 8.8.8.8 -> 192.168.1.15
+[16:15:56] TCP 10.31.186.232:47486 -> 23.23.42.90:8883
+[16:15:30] UDP 142.251.140.74:443 -> 10.31.186.232:51210
+[16:16:17] ICMP 10.31.186.232 -> 10.31.186.123
+TCP: 5  UDP: 0  ICMP: 0
+Total packets: 8
 ```
 
 ## How It Works
@@ -46,7 +51,7 @@ These checks prevent out-of-bounds memory reads and improve parser robustness. T
 ## Build
 
 ```bash
-gcc -Wall sniffer.c -o sniffer
+make
 ```
 
 ## Running
@@ -56,29 +61,28 @@ Raw sockets require root privileges.
 ```bash
 sudo ./sniffer
 ```
+```bash
+sudo ./sniffer [tcp|udp|icmp|--help]
+```
 
 Stop the program with `Ctrl+C`.
 
 ## Limitations
 
 - IPv4 only (no IPv6 support)
-- No packet filtering — all traffic is displayed
 - Linux only (uses `AF_PACKET`)
 - Shutdown depends on `recvfrom()` returning; on a silent network there may be a brief delay before the program exits
+- Filtering is protocol only
 
 ## Project Structure
 
 ```
 sniffer.c
 README.md
+Makefile
 ```
 
 ## Future Versions
-
-**v2**
-- Command-line packet filtering
-- Packet statistics
-- Interface selection
 
 **v3**
 - DNS parsing
