@@ -14,6 +14,7 @@
 
 volatile sig_atomic_t running = 1;
 
+//Sets a flag instead of terminating imediatelly so the main loop can exit cleanly.
 void handle_sigint(int sig) {
     (void)sig;
     running = 0;
@@ -21,7 +22,7 @@ void handle_sigint(int sig) {
 
 int main (int argc, char *argv[]) {
 	int filter = 0;
-	
+// Parse command arguments before opening the raw socket	
 	if (argc > 1) {
 		if (strcmp(argv[1], "--help") == 0){
 			printf("Usage: %s [tcp|udp|icmp]\n", argv[0]);
@@ -40,6 +41,8 @@ int main (int argc, char *argv[]) {
 	
 		
     signal(SIGINT, handle_sigint);
+
+    // Create raw socket
     int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     if (sock < 0) {
         perror("socket");
@@ -53,6 +56,7 @@ int main (int argc, char *argv[]) {
     int icmp_count = 0;
     int total_count = 0;
 
+//Capture packet untill Ctrl+c is pressed	
     while (running) {
         int bytes = recvfrom(sock, buffer, sizeof(buffer), 0, NULL, NULL);
         if (bytes < 0) {
@@ -68,21 +72,24 @@ int main (int argc, char *argv[]) {
 		char timestr[16];
 		strftime(timestr, sizeof(timestr), "%H:%M:%S", t);
         
+//Verify enough bytes were received for a complete IPv4 header
         if (bytes < 14 + (int)sizeof(struct iphdr)) continue;
-        
+//Skip 14-byte Ethernet header        
         struct iphdr *ip = (struct iphdr *)(buffer + 14);
         struct in_addr src, dst;
         src.s_addr = ip->saddr;
         dst.s_addr = ip->daddr;
 
-
+//ihl counts 4 byte words, not bytes - headers are usually 20 but can go up to 60
         int ip_header_len = ip-> ihl *4;
 
+//Skip packets that do not match selected filter
 		if (filter != 0 && ip->protocol != filter) continue;
 		
         if (ip->protocol == 6){
             if(bytes < 14 + ip_header_len + (int)sizeof(struct tcphdr)) continue;
             struct tcphdr *tcp = (struct tcphdr *)(buffer + 14 + ip_header_len);
+//inet_ntoa returns a shared static buffer, two calls in one printf would clober the first            
              printf("[%s] TCP %s:%d -> ", timestr, inet_ntoa(src), ntohs(tcp->source));
              printf("%s:%d\n", inet_ntoa(dst), ntohs(tcp->dest));
              tcp_count ++;
@@ -101,6 +108,7 @@ int main (int argc, char *argv[]) {
         }
     }
     close(sock);
+//Print statistic
     printf("TCP: %d UDP: %d ICMP: %d\n", tcp_count, udp_count, icmp_count);
     printf("Total packets: %d\n", total_count);
     printf("\nShutting down. Bye untill next time.\n");
