@@ -20,16 +20,28 @@ void handle_sigint(int sig) {
     running = 0;
 }
 
-void parse_dns_name(unsigned char *buffer, int bytes, int start) {
+void parse_dns_name(unsigned char *buffer, int bytes, int start, int dns_start) {
     int position = start;
+    int jumps = 0;
 
     while (position < bytes) {
 
         int len = buffer[position];
         if (len == 0)break;
+
+        if (len >= 192){
+            if (position + 1 >= bytes) break;
+            int offset = ((len & 0x3F) << 8) | buffer[position + 1];
+            if (dns_start + offset >= bytes) break;
+            jumps ++;
+            if (jumps > 10) break;
+            position = dns_start + offset;
+            continue;
+        }
+
         if (position + 1 + len > bytes) break;
         for (int i = 0; i < len; i++) {
-            printf("%c", buffer[position + 1 + i]);
+        printf("%c", buffer[position + 1 + i]);
         }
         printf(".");
         position += 1 + len;
@@ -123,7 +135,7 @@ int main (int argc, char *argv[]) {
                 if (dns_len < 12) continue;
                 printf("[%s] DNS %s:%d -> ", timestr, inet_ntoa(src), ntohs(udp->source));
                 printf("%s:%d ", inet_ntoa(dst), ntohs(udp-> dest));
-                parse_dns_name(buffer, bytes, dns_offset + 12);
+                parse_dns_name(buffer, bytes, dns_offset + 12, dns_offset);
             }
             else {
                  printf("[%s] UDP %s:%d -> ", timestr,  inet_ntoa(src), ntohs(udp->source));
