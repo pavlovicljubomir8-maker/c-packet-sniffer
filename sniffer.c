@@ -20,6 +20,24 @@ void handle_sigint(int sig) {
     running = 0;
 }
 
+void parse_dns_name(unsigned char *buffer, int bytes, int start) {
+    int position = start;
+
+    while (position < bytes) {
+
+        int len = buffer[position];
+        if (len == 0)break;
+        if (position + 1 + len > bytes) break;
+        for (int i = 0; i < len; i++) {
+            printf("%c", buffer[position + 1 + i]);
+        }
+        printf(".");
+        position += 1 + len;
+    }    
+
+    printf("\n");
+}
+
 int main (int argc, char *argv[]) {
 	int filter = 0;
 // Parse command arguments before opening the raw socket	
@@ -97,9 +115,21 @@ int main (int argc, char *argv[]) {
         else if (ip->protocol == 17){
             if (bytes < 14 + ip_header_len + (int)sizeof(struct udphdr)) continue;
             struct udphdr *udp = (struct udphdr *)(buffer + 14 + ip_header_len);
-            printf("[%s] UDP %s:%d -> ", timestr,  inet_ntoa(src), ntohs(udp->source));
-            printf("%s:%d\n", inet_ntoa(dst), ntohs(udp->dest));
             udp_count ++;
+           
+            if (ntohs(udp->source) == 53 || ntohs(udp->dest) == 53) {
+                int dns_offset = 14 + ip_header_len +8;
+                int dns_len = bytes - dns_offset;
+                if (dns_len < 12) continue;
+                printf("[%s] DNS %s:%d -> ", timestr, inet_ntoa(src), ntohs(udp->source));
+                printf("%s:%d ", inet_ntoa(dst), ntohs(udp-> dest));
+                parse_dns_name(buffer, bytes, dns_offset + 12);
+            }
+            else {
+                 printf("[%s] UDP %s:%d -> ", timestr,  inet_ntoa(src), ntohs(udp->source));
+                 printf("%s:%d\n", inet_ntoa(dst), ntohs(udp->dest));
+            }
+            
         }
         else if( ip->protocol == 1) {
         printf("[%s] ICMP %s -> ", timestr, inet_ntoa(src));
