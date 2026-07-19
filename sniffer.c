@@ -123,6 +123,27 @@ int main (int argc, char *argv[]) {
              printf("[%s] TCP %s:%d -> ", timestr, inet_ntoa(src), ntohs(tcp->source));
              printf("%s:%d\n", inet_ntoa(dst), ntohs(tcp->dest));
              tcp_count ++;
+
+//HTTP Parser
+            if(ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80){
+                int tcp_header_len = tcp->doff * 4;
+                int http_offset = 14 + ip_header_len + tcp_header_len;
+                int http_len = bytes - http_offset;
+
+                if (http_len > 4 && (
+                    memcmp(&buffer[http_offset], "GET ", 4) == 0 ||
+                    memcmp(&buffer[http_offset], "POST", 4) == 0 ||
+                    memcmp(&buffer[http_offset], "PUT ", 4) == 0 ||
+                    memcmp(&buffer[http_offset], "HEAD", 4) == 0)) {
+
+                        printf("[%s] HTTP: ", timestr);
+                        for (int i = 0; i < http_len; i++){
+                            if (buffer[http_offset + i] == '\r' || buffer[http_offset + i] == '\n') break;
+                            printf("%c", buffer[http_offset + i]);
+                        }
+                        printf("\n");
+                    }
+            }             
         }
         else if (ip->protocol == 17){
             if (bytes < 14 + ip_header_len + (int)sizeof(struct udphdr)) continue;
