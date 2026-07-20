@@ -113,8 +113,9 @@ struct pcap_packet_header {
 
 int main (int argc, char *argv[]) {
 	int filter = 0;
-
     char *pcap_filename = NULL;
+    int filter_port = 0;
+    char *filter_host = NULL;
 
     for (int i = 1; i < argc; i++){
         if (strcmp(argv[i], "--help") == 0){
@@ -134,6 +135,24 @@ int main (int argc, char *argv[]) {
         else if (strcmp(argv[i], "tcp") == 0 ) filter = 6;
         else if (strcmp(argv[i], "udp") == 0 ) filter = 17;
         else if (strcmp(argv[i], "icmp") == 0 ) filter = 1;
+        else if (strcmp(argv[i], "--port") == 0) {
+            if (i + 1 < argc){
+                filter_port = atoi(argv[i + 1]);
+                i++;
+            } else {
+                printf("--port requires a number\n");
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "--host") == 0) {
+            if (i + 1 < argc) {
+                filter_host = argv[i + 1];
+                i++;
+            } else {
+                printf("--host requires an IP address\n");
+                return 1;
+            }
+        }
         else {
             printf("Unknown argument: %s\n", argv[i]);
             return 1;
@@ -147,19 +166,19 @@ int main (int argc, char *argv[]) {
             perror("fopen pcap");
             return 1;
         }
+    
+
+        struct pcap_global_header gh;
+        gh.magic_number  = 0xa1b2c3d4;
+        gh.version_major = 2;
+        gh.version_minor = 4;
+        gh.thiszone      = 0;
+        gh.sigfigs       = 0;
+        gh.snaplen       = 65535;
+        gh.network       = 1;
+
+        fwrite(&gh, sizeof(gh), 1, pcap_file);
     }
-
-    struct pcap_global_header gh;
-    gh.magic_number  = 0xa1b2c3d4;
-    gh.version_major = 2;
-    gh.version_minor = 4;
-    gh.thiszone      = 0;
-    gh.sigfigs       = 0;
-    gh.snaplen       = 65535;
-    gh.network       = 1;
-
-    fwrite(&gh, sizeof(gh), 1, pcap_file);
-	
 		
     signal(SIGINT, handle_sigint);
 
@@ -206,6 +225,10 @@ int main (int argc, char *argv[]) {
 
 //Skip packets that do not match selected filter
 		if (filter != 0 && ip->protocol != filter) continue;
+        if (filter_host != NULL){
+            uint32_t want = inet_addr(filter_host);
+            if (ip->saddr != want && ip->daddr != want) continue;
+        }
 
         if (pcap_file != NULL) {
             struct pcap_packet_header ph;
@@ -221,6 +244,9 @@ int main (int argc, char *argv[]) {
         if (ip->protocol == 6){
             if(bytes < 14 + ip_header_len + (int)sizeof(struct tcphdr)) continue;
             struct tcphdr *tcp = (struct tcphdr *)(buffer + 14 + ip_header_len);
+            if (filter_port != 0 &&
+                ntohs(tcp->source) != filter_port &&
+                ntohs(tcp->dest) != filter_port) continue;
 //inet_ntoa returns a shared static buffer, two calls in one printf would clober the first            
              printf("[%s] TCP %s:%d -> ", timestr, inet_ntoa(src), ntohs(tcp->source));
              printf("%s:%d\n", inet_ntoa(dst), ntohs(tcp->dest));
@@ -260,6 +286,9 @@ int main (int argc, char *argv[]) {
         else if (ip->protocol == 17){
             if (bytes < 14 + ip_header_len + (int)sizeof(struct udphdr)) continue;
             struct udphdr *udp = (struct udphdr *)(buffer + 14 + ip_header_len);
+            if (filter_port != 0 &&
+                ntohs(udp->source) != filter_port &&
+                ntohs(udp->dest) )
             udp_count ++;
            
             if (ntohs(udp->source) == 53 || ntohs(udp->dest) == 53) {
