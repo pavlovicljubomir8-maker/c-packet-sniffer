@@ -202,9 +202,12 @@ int main (int argc, char *argv[]) {
     int udp_count = 0;
     int icmp_count = 0;
     int total_count = 0;
-
     struct ip_counter talkers[1000];
     int talker_count = 0;
+    long total_bytes = 0;
+    int packets_this_second = 0;
+    long bytes_this_second = 0;
+    time_t last_rate_print = time(NULL);
 
 //Capture packet untill Ctrl+c is pressed	
     while (running) {
@@ -215,12 +218,23 @@ int main (int argc, char *argv[]) {
         }
 
         total_count ++; 
+        packets_this_second++;
+        bytes_this_second += bytes;
+        total_bytes += bytes;
 
 		
 		time_t now = time(NULL);
 		struct tm *t = localtime(&now);
 		char timestr[16];
 		strftime(timestr, sizeof(timestr), "%H:%M:%S", t);
+
+        if (now > last_rate_print) {
+            printf(">>> Rate: %d packets/sec, %ld bytes/sec\n",
+                packets_this_second, bytes_this_second);
+            packets_this_second = 0;
+            bytes_this_second = 0;
+            last_rate_print = now;
+        }
         
 //Verify enough bytes were received for a complete IPv4 header
         if (bytes < 14 + (int)sizeof(struct iphdr)) continue;
