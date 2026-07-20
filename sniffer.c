@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
+#include <stdint.h>
 
 volatile sig_atomic_t running = 1;
 
@@ -92,24 +93,72 @@ void parse_tls_sni(unsigned char *buffer, int bytes, int tls_offset, char *times
         pos += ext_len;
     }
 }
+
+struct pcap_global_header {
+    uint32_t magic_number;
+    uint16_t version_major;
+    uint16_t version_minor;
+    int32_t thiszone;
+    uint32_t sigfigs;
+    uint32_t snaplen;
+    uint32_t network;
+};
+
+struct pcap_packet_header {
+    uint32_t ts_sec;
+    uint32_t ts_usec;
+    uint32_t incl_len;
+    uint32_t orig_len;
+};
+
 int main (int argc, char *argv[]) {
 	int filter = 0;
-// Parse command arguments before opening the raw socket	
-	if (argc > 1) {
-		if (strcmp(argv[1], "--help") == 0){
-			printf("Usage: %s [tcp|udp|icmp]\n", argv[0]);
-			printf(" No argument: capture all protocols\n");
-			return 0;
-		}
-		else if (strcmp(argv[1], "tcp") == 0) filter =6;
-		else if (strcmp(argv[1], "udp") == 0) filter =17;
-		else if (strcmp(argv[1], "icmp") == 0) filter =1;
-		else {
-			printf("Unknown filter: %s\n", argv[1]);
-			printf("Usage: %s [tcp|udp|icmp]\n", argv[0]);
-			return 1;
-		}
-	}
+
+    char *pcap_filename = NULL;
+
+    for (int i = 1; i < argc; i++){
+        if (strcmp(argv[i], "--help") == 0){
+            printf("Usage: %s [tcp|udp|icmp][-w file.pcap]\n", argv[0]);
+            printf(" No argument: capture all protocols\n");
+            return 0;
+        }
+        else if (strcmp(argv[i], "-w") == 0){
+            if (i + 1 < argc){
+                pcap_filename = argv[i + 1];
+                i++;
+            } else{
+                printf("-w requires a filename\n");
+                return 1;
+            }
+        }
+        else if (strcmp(argv[i], "tcp") == 0 ) filter = 6;
+        else if (strcmp(argv[i], "udp") == 0 ) filter = 17;
+        else if (strcmp(argv[i], "icmp") == 0 ) filter = 1;
+        else {
+            printf("Unknown argument: %s\n", argv[i]);
+            return 1;
+        } 
+    }
+
+    FILE *pcap_file = NULL;
+    if (pcap_filename != NULL) {
+        pcap_file = fopen(pcap_filename, "wb");
+        if (pcap_file == NULL) {
+            perror("fopen pcap");
+            return 1;
+        }
+    }
+
+    struct pcap_global_header gh;
+    gh.magic_number  = 0xa1b2c3d4;
+    gh.version_major = 2;
+    gh.version_minor = 4;
+    gh.thiszone      = 0;
+    gh.sigfigs       = 0;
+    gh.snaplen       = 65535;
+    gh.network       = 1;
+
+    fwrite(&gh, sizeof(gh), 1, pcap_file);
 	
 		
     signal(SIGINT, handle_sigint);
@@ -157,6 +206,17 @@ int main (int argc, char *argv[]) {
 
 //Skip packets that do not match selected filter
 		if (filter != 0 && ip->protocol != filter) continue;
+
+        if (pcap_file != NULL) {
+            struct pcap_packet_header ph;
+            ph.ts_sec   = now;
+            ph.ts_usec  = 0;
+            ph.incl_len = bytes;
+            ph.orig_len = bytes;
+            fwrite(&ph, sizeof(ph), 1, pcap_file);
+            fwrite(buffer, bytes, 1, pcap_file);
+        }
+
 		
         if (ip->protocol == 6){
             if(bytes < 14 + ip_header_len + (int)sizeof(struct tcphdr)) continue;
@@ -193,9 +253,7 @@ int main (int argc, char *argv[]) {
                 int tls_len = bytes - tls_offset;
 
                 if (tls_len > 5 && buffer[tls_offset] == 22) {
-                    if (tls_len > 5 && buffer[tls_offset] == 22){
-                        parse_tls_sni(buffer, bytes, tls_offset, timestr);
-                    }
+                        parse_tls_sni(buffer, bytes, tls_offset, timestr);                   
                 }
             }
         }
@@ -225,6 +283,7 @@ int main (int argc, char *argv[]) {
         }
     }
     close(sock);
+    if (pcap_file != NULL) fclose(pcap_file);
 //Print statistic
     printf("TCP: %d UDP: %d ICMP: %d\n", tcp_count, udp_count, icmp_count);
     printf("Total packets: %d\n", total_count);
