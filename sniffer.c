@@ -111,11 +111,18 @@ struct pcap_packet_header {
     uint32_t orig_len;
 };
 
+struct ip_counter {
+    uint32_t ip;
+    int count;
+};
+
 int main (int argc, char *argv[]) {
 	int filter = 0;
     char *pcap_filename = NULL;
     int filter_port = 0;
     char *filter_host = NULL;
+
+
 
     for (int i = 1; i < argc; i++){
         if (strcmp(argv[i], "--help") == 0){
@@ -195,6 +202,9 @@ int main (int argc, char *argv[]) {
     int udp_count = 0;
     int icmp_count = 0;
     int total_count = 0;
+
+    struct ip_counter talkers[1000];
+    int talker_count = 0;
 
 //Capture packet untill Ctrl+c is pressed	
     while (running) {
@@ -310,10 +320,40 @@ int main (int argc, char *argv[]) {
         printf("%s\n", inet_ntoa(dst));
         icmp_count ++;
         }
+
+        int found = 0;
+        for (int i = 0; i < talker_count; i++){
+            if (talkers[i].ip == ip->saddr){
+                talkers[i].count++;
+                found = 1;
+                break;
+            }
+        }
+        if (!found && talker_count < 1000){
+            talkers[talker_count].ip = ip->saddr;
+            talkers[talker_count].count = 1;
+            talker_count++;
+        }
     }
     close(sock);
     if (pcap_file != NULL) fclose(pcap_file);
 //Print statistic
+    for (int i = 0; i < talker_count; i++){
+        for (int j = i + 1; j< talker_count; j++){
+            if (talkers[j].count > talkers[i].count){
+                struct ip_counter tmp = talkers[i];
+                talkers[i] = talkers[j];
+                talkers[j] = tmp;
+            }
+        }
+    }
+    printf("\nTop talkers:\n");
+    for (int i = 0; i < talker_count && i < 5; i++){
+        struct in_addr a;
+        a.s_addr = talkers[i].ip;
+        printf(" %s: %d packets\n", inet_ntoa(a), talkers[i].count);
+    }
+
     printf("TCP: %d UDP: %d ICMP: %d\n", tcp_count, udp_count, icmp_count);
     printf("Total packets: %d\n", total_count);
     printf("\nShutting down. Bye untill next time.\n");
