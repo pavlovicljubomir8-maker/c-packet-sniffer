@@ -93,7 +93,7 @@ void parse_tls_sni(unsigned char *buffer, int bytes, int tls_offset, char *times
         pos += ext_len;
     }
 }
-
+// Describes the whole capture
 struct pcap_global_header {
     uint32_t magic_number;
     uint16_t version_major;
@@ -103,7 +103,7 @@ struct pcap_global_header {
     uint32_t snaplen;
     uint32_t network;
 };
-
+//Written before each capture
 struct pcap_packet_header {
     uint32_t ts_sec;
     uint32_t ts_usec;
@@ -132,6 +132,7 @@ int main (int argc, char *argv[]) {
         }
         else if (strcmp(argv[i], "-w") == 0){
             if (i + 1 < argc){
+//Grabs next argument as value                
                 pcap_filename = argv[i + 1];
                 i++;
             } else{
@@ -176,6 +177,7 @@ int main (int argc, char *argv[]) {
     
 
         struct pcap_global_header gh;
+//Marks file as PCAP        
         gh.magic_number  = 0xa1b2c3d4;
         gh.version_major = 2;
         gh.version_minor = 4;
@@ -227,7 +229,7 @@ int main (int argc, char *argv[]) {
 		struct tm *t = localtime(&now);
 		char timestr[16];
 		strftime(timestr, sizeof(timestr), "%H:%M:%S", t);
-
+//print the per second rate and reset counters
         if (now > last_rate_print) {
             printf(">>> Rate: %d packets/sec, %ld bytes/sec\n",
                 packets_this_second, bytes_this_second);
@@ -250,10 +252,11 @@ int main (int argc, char *argv[]) {
 //Skip packets that do not match selected filter
 		if (filter != 0 && ip->protocol != filter) continue;
         if (filter_host != NULL){
+//Compare ra 32 bit addresses
             uint32_t want = inet_addr(filter_host);
             if (ip->saddr != want && ip->daddr != want) continue;
         }
-
+//Only write if -w gave a file
         if (pcap_file != NULL) {
             struct pcap_packet_header ph;
             ph.ts_sec   = now;
@@ -312,7 +315,7 @@ int main (int argc, char *argv[]) {
             struct udphdr *udp = (struct udphdr *)(buffer + 14 + ip_header_len);
             if (filter_port != 0 &&
                 ntohs(udp->source) != filter_port &&
-                ntohs(udp->dest) )
+                ntohs(udp->dest) != filter_port) continue;
             udp_count ++;
            
             if (ntohs(udp->source) == 53 || ntohs(udp->dest) == 53) {
@@ -334,7 +337,7 @@ int main (int argc, char *argv[]) {
         printf("%s\n", inet_ntoa(dst));
         icmp_count ++;
         }
-
+//Linear search for source IP
         int found = 0;
         for (int i = 0; i < talker_count; i++){
             if (talkers[i].ip == ip->saddr){
@@ -353,6 +356,7 @@ int main (int argc, char *argv[]) {
     if (pcap_file != NULL) fclose(pcap_file);
 //Print statistic
     for (int i = 0; i < talker_count; i++){
+//Sort by count, descending        
         for (int j = i + 1; j< talker_count; j++){
             if (talkers[j].count > talkers[i].count){
                 struct ip_counter tmp = talkers[i];

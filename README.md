@@ -16,6 +16,10 @@ A packet sniffer written in C using raw sockets on Linux. The project captures l
 - Parses DNS queries and extracts requested domain names
 - Parses HTTP request lines on port 80
 - Extracts TLS SNI (server hostname) from HTTPS ClientHello messages
+- Export captures to PCAP format (readable by Wireshark and tcpdump)
+- Filter by port (--port) and host IP (--host), combinable with protocol filters
+- Live packets-per-second and bytes-per-second rate display
+- Top talkers summary (busiest source IPs) on shutdown
 
 ## Example Output
 
@@ -47,6 +51,7 @@ For example:
 - Performs protocol-specific bounds checks before parsing TCP or UDP headers
 
 These checks prevent out-of-bounds memory reads and improve parser robustness. The program has been verified with Valgrind under live traffic with no memory errors reported.
+Captured packets can be written to a PCAP file (-w), the standard format used by Wireshark and tcpdump, allowing captures to be analyzed in those tools.
 
 ## Requirements
 
@@ -61,26 +66,26 @@ make
 ```
 
 ## Running
-
-Raw sockets require root privileges.
-
-```bash
-sudo ./sniffer
 ```
-```bash
-sudo ./sniffer [tcp|udp|icmp|--help]
+sudo ./sniffer [tcp|udp|icmp] [--port N] [--host IP] [-w file.pcap]
+
+Examples:
+  sudo ./sniffer                          capture everything
+  sudo ./sniffer tcp --port 443           TCP traffic on port 443 only
+  sudo ./sniffer --host 1.2.3.4           traffic to/from one host
+  sudo ./sniffer -w capture.pcap          write to a pcap file
+
+Stop with CTRL + C
 ```
-
-Stop the program with `Ctrl+C`.
-
 ## Limitations
 
 - IPv4 only (no IPv6 support)
 - Linux only (uses `AF_PACKET`)
 - Shutdown depends on `recvfrom()` returning; on a silent network there may be a brief delay before the program exits
-- Filtering is protocol only
 - DNS, HTTP, and TLS parsing only handle payloads within a single packet; requests split across multiple packets are not reassembled
 - TLS SNI extraction does not handle Encrypted ClientHello (ECH), which hides the SNI
+- Top talkers counts source IPs only, so the local machine (source of all its outbound traffic) tends to dominate the list
+- Rate display only updates when packets arrive; during silent periods no rate line is printed (the capture loop blocks waiting for packets)
 
 ## Project Structure
 
@@ -89,20 +94,6 @@ sniffer.c
 README.md
 Makefile
 ```
-
-## Future Versions
-
-**v4**
-- PCAP export
-- Configuration file
-- Logging
-- Improved command-line interface
-
-**v5**
-- Multi-threaded packet processing
-- TCP flow tracking
-- Basic TCP stream reassembly
-- Plugin architecture for protocol decoders
 
 ## License
 
