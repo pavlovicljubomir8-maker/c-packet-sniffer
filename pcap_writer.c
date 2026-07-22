@@ -6,6 +6,7 @@ FILE *pcap_open(const char *filename) {
     if (f == NULL) return NULL;
 
     struct pcap_global_header gh;
+// magic identifies the file as pcap; network = 1 means Ethernet link layer, so Wireshark knows how to parse the frames
     gh.magic_number  = 0xa1b2c3d4;
     gh.version_major = 2;
     gh.version_minor = 4;

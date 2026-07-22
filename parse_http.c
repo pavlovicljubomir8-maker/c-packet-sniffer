@@ -3,6 +3,7 @@
 #include <string.h>
 #include "parse_http.h"
 
+//"GET " needs the trailing space; the string literal is 4 bytes and the packet has method-plus-space, so comparing against 3-char "GET" would compare its null terminator against the space and never match.
 void parse_http_request(unsigned char *buffer, int http_offset, int http_len, const char *timestr) {
     if (http_len > 4 && (
         memcmp(&buffer[http_offset], "GET ", 4) == 0 ||

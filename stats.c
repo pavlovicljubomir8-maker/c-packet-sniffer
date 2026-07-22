@@ -3,6 +3,7 @@
 #include <arpa/inet.h>
 #include "stats.h"
 
+// linear search: increment if seen, append if new. O(n), fine at this scale.
 void record_talker(struct talker_table *table, uint32_t ip) {
     for (int i = 0; i < table->count; i++) {
         if (table->talkers[i].ip == ip) { table->talkers[i].count++; return; }
@@ -13,7 +14,7 @@ void record_talker(struct talker_table *table, uint32_t ip) {
         table->count++;
     }
 }
-
+// selection sort by count descending, runs once at shutdown so O(n²) doesn't matter.
 void print_top_talkers(struct talker_table *table) {
     for (int i = 0; i < table->count; i++) {
         for (int j = i + 1; j < table->count; j++) {

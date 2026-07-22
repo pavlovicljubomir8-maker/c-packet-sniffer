@@ -1,4 +1,4 @@
-// parse_tls.h
+// parse_tls.h owns extracting the SNI hostname from a TLS ClientHello
 #ifndef PARSE_TLS_H
 #define PARSE_TLS_H
 void parse_tls_sni(unsigned char *buffer, int bytes, int tls_offset, char *timestr);

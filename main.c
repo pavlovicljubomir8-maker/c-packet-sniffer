@@ -60,20 +60,23 @@ int main(int argc, char *argv[]) {
         strftime(timestr, sizeof(timestr), "%H:%M:%S", t);
 
         print_rate_if_new_second(now, &last_rate_print, &packets_this_second, &bytes_this_second);
-
+        // packets come from an untrusted source, so verify a full IP header is present before casting
         if (bytes < 14 + (int)sizeof(struct iphdr)) continue;
+        // skipping the 14-byte Ethernet header to reach the IP header.
         struct iphdr *ip = (struct iphdr *)(buffer + 14);
         struct in_addr src, dst;
         src.s_addr = ip->saddr;
         dst.s_addr = ip->daddr;
+        // ihl counts 4-byte words, not bytes; usually 20 but can go to 60
         int ip_header_len = ip->ihl * 4;
 
         if (cfg.filter != 0 && ip->protocol != cfg.filter) continue;
         if (cfg.filter_host != NULL) {
+        // compares raw 32-bit addresses rather than strings, sidestepping the same inet_ntoa clobber.
             uint32_t want = inet_addr(cfg.filter_host);
             if (ip->saddr != want && ip->daddr != want) continue;
         }
-
+        // only writes when -w gave a file; passing NULL to fwrite segfaults
         if (pcap_file != NULL) pcap_write_packet(pcap_file, now, buffer, bytes);
 
         if (ip->protocol == 6) {
@@ -83,10 +86,11 @@ int main(int argc, char *argv[]) {
                 ntohs(tcp->source) != cfg.filter_port &&
                 ntohs(tcp->dest) != cfg.filter_port) continue;
 
+            // inet_ntoa returns a shared static buffer, so two calls in one printf would clobber the first
             printf("[%s] TCP %s:%d -> ", timestr, inet_ntoa(src), ntohs(tcp->source));
             printf("%s:%d\n", inet_ntoa(dst), ntohs(tcp->dest));
             tcp_count++;
-
+            // same 4-byte-word encoding as ihl; needed because the TCP header is variable-length
             int tcp_header_len = tcp->doff * 4;
 
             if (ntohs(tcp->source) == 80 || ntohs(tcp->dest) == 80) {
@@ -96,7 +100,8 @@ int main(int argc, char *argv[]) {
             if (ntohs(tcp->source) == 443 || ntohs(tcp->dest) == 443) {
                 int tls_offset = 14 + ip_header_len + tcp_header_len;
                 int tls_len = bytes - tls_offset;
-                if (tls_len > 5 && buffer[tls_offset] == 22)
+            // record type 22 is a handshake
+                if (tls_len > 5 && buffer[tls_offset] == 22 && buffer[tls_offset + 5] == 1)
                     parse_tls_sni(buffer, bytes, tls_offset, timestr);
             }
         }
@@ -110,6 +115,7 @@ int main(int argc, char *argv[]) {
 
             if (ntohs(udp->source) == 53 || ntohs(udp->dest) == 53) {
                 int dns_offset = 14 + ip_header_len + 8;
+            // DNS header is 12 bytes; guards the name parse that starts right after it
                 if (bytes - dns_offset < 12) continue;
                 printf("[%s] DNS %s:%d -> ", timestr, inet_ntoa(src), ntohs(udp->source));
                 printf("%s:%d ", inet_ntoa(dst), ntohs(udp->dest));
@@ -124,7 +130,7 @@ int main(int argc, char *argv[]) {
             printf("%s\n", inet_ntoa(dst));
             icmp_count++;
         }
-
+        // source only, which is why the local machine dominates the list
         record_talker(&talkers, ip->saddr);
     }
 

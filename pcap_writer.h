@@ -1,10 +1,10 @@
-// pcap_writer.h
+// pcap_writer.h owns writing capture files in PCAP format (the layout Wireshark/tcpdump read)
 #ifndef PCAP_WRITER_H
 #define PCAP_WRITER_H
 #include <stdio.h>
 #include <stdint.h>
 #include <time.h>
-
+//written once, describes the whole file
 struct pcap_global_header {
     uint32_t magic_number;
     uint16_t version_major;
@@ -14,7 +14,7 @@ struct pcap_global_header {
     uint32_t snaplen;
     uint32_t network;
 };
-
+//written before every packet, its timestamp and length
 struct pcap_packet_header {
     uint32_t ts_sec;
     uint32_t ts_usec;

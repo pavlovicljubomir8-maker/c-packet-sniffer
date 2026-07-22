@@ -1,4 +1,4 @@
-// cli.h
+// cli.h owns command-line argument parsing into the config struct
 #ifndef CLI_H
 #define CLI_H
 
